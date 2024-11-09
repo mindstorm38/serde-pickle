@@ -75,6 +75,7 @@ enum Value {
 #[derive(Clone, Debug, Default)]
 pub struct DeOptions {
     decode_strings: bool,
+    decode_strings_relaxed: bool,
     keep_restore_state: bool,
     replace_unresolved_globals: bool,
     replace_recursive_structures: bool,
@@ -94,6 +95,12 @@ impl DeOptions {
     /// Activate decoding strings saved as STRING.
     pub fn decode_strings(mut self) -> Self {
         self.decode_strings = true;
+        self
+    }
+
+    pub fn decode_strings_relaxed(mut self) -> Self {
+        self.decode_strings = true;
+        self.decode_strings_relaxed = true;
         self
     }
 
@@ -882,7 +889,13 @@ impl<R: Read> Deserializer<R> {
     fn decode_unicode(&self, string: Vec<u8>) -> Result<Value> {
         match String::from_utf8(string) {
             Ok(v)  => Ok(Value::String(v)),
-            Err(_) => self.error(ErrorCode::StringNotUTF8)
+            Err(e) => {
+                if self.options.decode_strings_relaxed {
+                    Ok(Value::Bytes(e.into_bytes()))
+                } else {
+                    self.error(ErrorCode::StringNotUTF8)
+                }
+            }
         }
     }
 
